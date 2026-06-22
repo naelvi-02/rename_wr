@@ -78,6 +78,7 @@ async function syncData() {
   fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(finalOutput, null, 2));
   console.log(`Sync complete! Saved ${finalOutput.total} items to public/perhiasan.json`);
+  process.exit(0);
 }
 
 syncData().catch(console.error);
