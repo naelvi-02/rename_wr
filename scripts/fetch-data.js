@@ -41,7 +41,7 @@ async function syncData() {
     let currentKadar = '';
     let currentNampan = '';
     
-    for (let i = 10; i < rows.length; i++) {
+    for (let i = 3; i < rows.length; i++) {
       const row = rows[i];
       if (!row || row.length < 4) continue;
       
@@ -54,7 +54,7 @@ async function syncData() {
       if (kadar) currentKadar = kadar;
       if (nampan) currentNampan = nampan;
       
-      if (!barcode || barcode.toLowerCase().includes('barcode')) continue;
+      if (!barcode || !currentNamaBarang || barcode.toLowerCase().includes('barcode')) continue;
       
       // Clean multiple spaces
       const genName = `${currentNamaBarang} ${barcode} ${currentKadar} ${currentNampan}`.trim().replace(/\s+/g, ' ');
