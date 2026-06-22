@@ -41,7 +41,7 @@ async function syncData() {
     let currentKadar = '';
     let currentNampan = '';
     
-    for (let i = 3; i < rows.length; i++) {
+    for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row || row.length < 4) continue;
       
