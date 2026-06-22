@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - master
+  schedule:
+    - cron: '15 22 * * *' # 05:15 WIB (approx 6 AM)
+    - cron: '15 14 * * *' # 21:15 WIB (approx 10 PM)
 
 jobs:
   deploy:

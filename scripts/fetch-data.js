@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { parse } from 'csv-parse/sync';
 import https from 'https';
+import * as xlsx from 'xlsx';
 
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1WpKvUqaUrSJJ9qwG89guCElbv93ukgMR4QEsql7Z4Og/export?format=csv&gid=1590828332';
-const OUTPUT_PATH = path.join(process.cwd(), 'src/data/perhiasan.json');
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1WpKvUqaUrSJJ9qwG89guCElbv93ukgMR4QEsql7Z4Og/export?format=xlsx';
+const OUTPUT_PATH = path.join(process.cwd(), 'public/perhiasan.json');
 
 function download(url) {
   return new Promise((resolve, reject) => {
@@ -12,63 +12,70 @@ function download(url) {
       if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) {
         return resolve(download(res.headers.location));
       }
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(data));
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
       res.on('error', reject);
     }).on('error', reject);
   });
 }
 
 async function syncData() {
-  console.log('Downloading Google Sheets data...');
-  const csvText = await download(SHEET_URL);
+  console.log('Downloading Google Sheets data (.xlsx)...');
+  const buffer = await download(SHEET_URL);
   
-  const records = parse(csvText, {
-    skip_empty_lines: true,
-  });
-  
-  let currentNamaBarang = '';
-  let currentKadar = '';
-  let currentNampan = '';
+  console.log('Parsing xlsx...');
+  const workbook = xlsx.read(buffer, { type: 'buffer' });
   
   const database = {};
-
-  for (let i = 0; i < records.length; i++) {
-    const row = records[i];
+  
+  // Iterate all sheets
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    // Convert to array of arrays
+    const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
     
-    // row[2] = Nama Barang
-    // row[3] = Barcode
-    // row[7] = Kadar
-    // row[8] = Nampan
+    let currentNamaBarang = '';
+    let currentKadar = '';
+    let currentNampan = '';
     
-    if (i < 10) continue; // skip headers
-    
-    const namaBarang = row[2]?.trim();
-    const barcode = row[3]?.trim();
-    const kadar = row[7]?.trim();
-    const nampan = row[8]?.trim();
-    
-    if (namaBarang) currentNamaBarang = namaBarang;
-    if (kadar) currentKadar = kadar;
-    if (nampan) currentNampan = nampan;
-    
-    if (!barcode || !currentNamaBarang) continue; // skip rows without barcode
-    
-    const genName = `${currentNamaBarang} ${barcode} ${currentKadar} ${currentNampan}`.trim().replace(/\s+/g, ' ');
-    
-    database[barcode] = {
-      namaBarang: currentNamaBarang,
-      barcode: barcode,
-      kadar: currentKadar,
-      nampan: currentNampan,
-      generatedName: genName
-    };
+    for (let i = 10; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length < 4) continue;
+      
+      const namaBarang = String(row[2] || '').trim();
+      const barcode = String(row[3] || '').trim();
+      const kadar = String(row[7] || '').trim();
+      const nampan = String(row[8] || '').trim();
+      
+      if (namaBarang) currentNamaBarang = namaBarang;
+      if (kadar) currentKadar = kadar;
+      if (nampan) currentNampan = nampan;
+      
+      if (!barcode || !currentNamaBarang || barcode.toLowerCase().includes('barcode')) continue;
+      
+      // Clean multiple spaces
+      const genName = `${currentNamaBarang} ${barcode} ${currentKadar} ${currentNampan}`.trim().replace(/\s+/g, ' ');
+      
+      database[barcode] = {
+        namaBarang: currentNamaBarang,
+        barcode: barcode,
+        kadar: currentKadar,
+        nampan: currentNampan,
+        generatedName: genName
+      };
+    }
   }
 
+  const finalOutput = {
+    lastUpdated: new Date().toISOString(),
+    total: Object.keys(database).length,
+    items: database
+  };
+
   fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
-  fs.writeFileSync(OUTPUT_PATH, JSON.stringify(database, null, 2));
-  console.log(`Sync complete! Saved ${Object.keys(database).length} items to src/data/perhiasan.json`);
+  fs.writeFileSync(OUTPUT_PATH, JSON.stringify(finalOutput, null, 2));
+  console.log(`Sync complete! Saved ${finalOutput.total} items to public/perhiasan.json`);
 }
 
 syncData().catch(console.error);

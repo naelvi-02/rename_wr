@@ -8,10 +8,6 @@ interface ProductData {
   generatedName: string;
 }
 
-import DATABASE_JSON from "../data/perhiasan.json";
-
-const MOCK_DATABASE = DATABASE_JSON as Record<string, ProductData>;
-
 // Robust copy that works in sandboxed iframes without clipboard API access
 function copyToClipboard(text: string): boolean {
   try {
@@ -63,21 +59,58 @@ export default function App() {
   const [shake, setShake] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const [database, setDatabase] = useState<Record<string, ProductData>>({});
+  const [totalDb, setTotalDb] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState('');
+  const [syncing, setSyncing] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const res = await fetch('/rename/perhiasan.json?' + new Date().getTime());
+      const data = await res.json();
+      setDatabase(data.items || {});
+      setTotalDb(data.total || 0);
+      if (data.lastUpdated) {
+        const d = new Date(data.lastUpdated);
+        setLastUpdated(d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
+    loadData();
     inputRef.current?.focus();
   }, []);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch('/rename/api/sync', { method: 'POST' });
+      if (res.ok) {
+        await loadData();
+      } else {
+        alert('Sync failed! Cek Nginx atau script sync.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Gagal panggil API sync.');
+    }
+    setSyncing(false);
+  };
 
   const handleSearch = () => {
     const trimmed = inputValue.trim();
     if (!trimmed) return;
     
-    let found = MOCK_DATABASE[trimmed];
+    let found = database[trimmed];
     
     // Fallback: 4 digit suffix search
     if (!found && trimmed.length === 4) {
-      const matchKey = Object.keys(MOCK_DATABASE).find(key => key.endsWith(trimmed));
+      const matchKey = Object.keys(database).find(key => key.endsWith(trimmed));
       if (matchKey) {
-        found = MOCK_DATABASE[matchKey];
+        found = database[matchKey];
       }
     }
 
@@ -151,18 +184,33 @@ export default function App() {
               >
                 Jewelry Photo Renamer Tool
               </h1>
-              <p className="mt-1 text-sm" style={{ color: P.textSub }}>
-                Total Database:{" "}
-                <span style={{ color: P.text, fontWeight: 500 }}>2,543 Items</span>
+              <p className="mt-1 text-sm flex items-center gap-3" style={{ color: P.textSub }}>
+                <span>
+                  Total Database:{" "}
+                  <span style={{ color: P.text, fontWeight: 500 }}>
+                    {totalDb.toLocaleString()} Items
+                  </span>
+                </span>
+                {lastUpdated && (
+                  <span className="text-xs">
+                    (Update: {lastUpdated})
+                  </span>
+                )}
               </p>
             </div>
-            {/* Brand dot */}
-            <div
-              className="shrink-0 mt-0.5 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-              style={{ background: P.pinkPale, color: P.pink }}
+            
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="shrink-0 mt-0.5 rounded-full px-4 py-1.5 text-xs font-bold transition-all"
+              style={{ 
+                background: syncing ? P.textMuted : P.pinkPale, 
+                color: syncing ? '#fff' : P.pink,
+                cursor: syncing ? 'wait' : 'pointer'
+              }}
             >
-              W
-            </div>
+              {syncing ? 'Syncing...' : 'Sync Data'}
+            </button>
           </div>
         </div>
 
