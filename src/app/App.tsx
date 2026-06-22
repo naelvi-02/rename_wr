@@ -70,7 +70,17 @@ export default function App() {
   const handleSearch = () => {
     const trimmed = inputValue.trim();
     if (!trimmed) return;
-    const found = MOCK_DATABASE[trimmed];
+    
+    let found = MOCK_DATABASE[trimmed];
+    
+    // Fallback: 4 digit suffix search
+    if (!found && trimmed.length === 4) {
+      const matchKey = Object.keys(MOCK_DATABASE).find(key => key.endsWith(trimmed));
+      if (matchKey) {
+        found = MOCK_DATABASE[matchKey];
+      }
+    }
+
     if (found) {
       setResult(found);
       setNotFound(false);
