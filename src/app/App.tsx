@@ -5,6 +5,8 @@ interface ProductData {
   barcode: string;
   kadar: string;
   nampan: string;
+  berat?: string;
+  ukuran?: string;
   generatedName: string;
 }
 
@@ -394,6 +396,44 @@ export default function App() {
                   </span>
                 </div>
               </div>
+
+              {/* Berat & Ukuran */}
+              {(result.berat || result.ukuran) && (
+                <div className="pt-4 grid grid-cols-2 gap-4">
+                  {result.berat && (
+                    <div>
+                      <span
+                        className="text-[11px] font-medium block mb-1"
+                        style={{ color: P.textSub }}
+                      >
+                        Berat (Gramasi)
+                      </span>
+                      <span
+                        className="text-sm font-semibold"
+                        style={{ color: P.text }}
+                      >
+                        {result.berat}
+                      </span>
+                    </div>
+                  )}
+                  {result.ukuran && (
+                    <div>
+                      <span
+                        className="text-[11px] font-medium block mb-1"
+                        style={{ color: P.textSub }}
+                      >
+                        Ukuran (Size)
+                      </span>
+                      <span
+                        className="text-sm font-semibold"
+                        style={{ color: P.text }}
+                      >
+                        {result.ukuran}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

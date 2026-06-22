@@ -49,6 +49,8 @@ async function syncData() {
       const barcode = String(row[3] || '').trim();
       const kadar = String(row[7] || '').trim();
       const nampan = String(row[8] || '').trim();
+      const berat = String(row[4] || '').trim();
+      const ukuran = String(row[5] || '').trim();
       
       if (namaBarang) currentNamaBarang = namaBarang;
       if (kadar) currentKadar = kadar;
@@ -64,6 +66,8 @@ async function syncData() {
         barcode: barcode,
         kadar: currentKadar,
         nampan: currentNampan,
+        berat: berat,
+        ukuran: ukuran,
         generatedName: genName
       };
     }
