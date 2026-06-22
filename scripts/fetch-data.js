@@ -4,7 +4,9 @@ import https from 'https';
 import * as xlsx from 'xlsx';
 
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1WpKvUqaUrSJJ9qwG89guCElbv93ukgMR4QEsql7Z4Og/export?format=xlsx';
-const OUTPUT_PATH = path.join(process.cwd(), 'public/perhiasan.json');
+const OUTPUT_PATH = process.env.NODE_ENV === 'production' 
+  ? '/var/www/wr.naelvi.com/html/rename/perhiasan.json' 
+  : path.join(process.cwd(), 'public/perhiasan.json');
 
 function download(url) {
   return new Promise((resolve, reject) => {
