@@ -43,7 +43,7 @@ async function syncData() {
     
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      if (!row || row.length < 4) continue;
+      if (!row) continue;
       
       const namaBarang = String(row[2] || '').trim();
       const barcode = String(row[3] || '').trim();
