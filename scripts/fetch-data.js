@@ -45,12 +45,29 @@ async function syncData() {
       const row = rows[i];
       if (!row) continue;
       
-      const namaBarang = String(row[2] || '').trim();
-      const barcode = String(row[3] || '').trim();
-      const kadar = String(row[7] || '').trim();
-      const nampan = String(row[8] || '').trim();
-      const berat = String(row[4] || '').trim();
-      const ukuran = String(row[5] || '').trim();
+      let namaIdx = 2;
+      let barIdx = 3;
+      let beratIdx = 4;
+      let ukuranIdx = 5;
+      let kadarIdx = 7;
+      let nampanIdx = 8;
+
+      // Auto-detect missing Foto column (which shifts everything left by 1)
+      if (String(row[2] || '').trim().match(/^\d{8}$/)) {
+        namaIdx = 1;
+        barIdx = 2;
+        beratIdx = 3;
+        ukuranIdx = 4;
+        kadarIdx = 6;
+        nampanIdx = 7;
+      }
+
+      const namaBarang = String(row[namaIdx] || '').trim();
+      const barcode = String(row[barIdx] || '').trim();
+      const kadar = String(row[kadarIdx] || '').trim();
+      const nampan = String(row[nampanIdx] || '').trim();
+      const berat = String(row[beratIdx] || '').trim();
+      const ukuran = String(row[ukuranIdx] || '').trim();
       
       if (namaBarang) currentNamaBarang = namaBarang;
       if (kadar) currentKadar = kadar;
