@@ -31,12 +31,29 @@ async function syncData() {
   
   const database = {};
   
+  // Keywords for detecting new jewelry items
+  const keywords = [
+    'CINCIN', 'GELANG', 'KALUNG', 'LIONTIN', 'ANTING', 'TINDIK', 
+    'BROS', 'MAINAN', 'RANTAI', 'SET', 'GIWANG', 'BANGLE', 
+    'C/C', 'G/L', 'K/L', 'CC', 'GL', 'KL', 'LT', 'AT', 'GW'
+  ];
+
+  function isNewItem(name) {
+    const upper = name.toUpperCase();
+    for (const kw of keywords) {
+      if (upper.startsWith(kw)) return true;
+    }
+    if (/^\d+/.test(name)) return true;
+    return false;
+  }
+  
   // Iterate all sheets
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
     // Convert to array of arrays
     const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
     
+    let currentBaseName = '';
     let currentNamaBarang = '';
     let currentKadar = '';
     let currentNampan = '';
@@ -69,7 +86,16 @@ async function syncData() {
       const berat = String(row[beratIdx] || '').trim();
       const ukuran = String(row[ukuranIdx] || '').trim();
       
-      if (namaBarang) currentNamaBarang = namaBarang;
+      if (namaBarang) {
+        if (isNewItem(namaBarang)) {
+          currentBaseName = namaBarang;
+          currentNamaBarang = namaBarang;
+        } else {
+          // Continuation of the previous base name
+          currentNamaBarang = currentBaseName ? currentBaseName + ' ' + namaBarang : namaBarang;
+        }
+      }
+      
       if (kadar) currentKadar = kadar;
       if (nampan) currentNampan = nampan;
       
