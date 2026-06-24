@@ -8,17 +8,29 @@ const OUTPUT_PATH = process.env.NODE_ENV === 'production'
   ? '/var/www/wr.naelvi.com/html/rename/perhiasan.json' 
   : path.join(process.cwd(), 'public/perhiasan.json');
 
-function download(url) {
+function download(url, retries = 3) {
   return new Promise((resolve, reject) => {
     https.get(url, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) {
-        return resolve(download(res.headers.location));
+        return resolve(download(res.headers.location, retries));
       }
       const chunks = [];
       res.on('data', chunk => chunks.push(chunk));
       res.on('end', () => resolve(Buffer.concat(chunks)));
-      res.on('error', reject);
-    }).on('error', reject);
+      res.on('error', err => {
+        if (retries > 0) {
+          console.log(`Download failed: ${err.message}. Retrying... (${retries} left)`);
+          return resolve(download(url, retries - 1));
+        }
+        reject(err);
+      });
+    }).on('error', err => {
+      if (retries > 0) {
+        console.log(`Download failed: ${err.message}. Retrying... (${retries} left)`);
+        return resolve(download(url, retries - 1));
+      }
+      reject(err);
+    });
   });
 }
 
