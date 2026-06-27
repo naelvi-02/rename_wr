@@ -4,7 +4,7 @@ import https from 'https';
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwRNHQT6i9OupMnQIA8th7IWF0sEfvnJcBY7NOx8gk-ssAHXWQtOFet3xB9ltQJcKsa/exec';
 const OUTPUT_PATH = process.env.VPS_DEPLOY === 'true'
-  ? '/var/www/wr.naelvi.com/html/rename/dist/perhiasan.json' 
+  ? '/var/www/wr.naelvi.com/html/rename/perhiasan.json' 
   : path.join(process.cwd(), 'public/perhiasan.json');
 
 function downloadJSON(url, retries = 3) {
