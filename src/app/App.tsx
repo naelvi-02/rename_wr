@@ -196,7 +196,7 @@ export default function App() {
       <div
         className="w-full flex flex-col rounded-[10px] overflow-hidden"
         style={{
-          maxWidth: 960,
+          maxWidth: 1280,
           background: P.card,
           boxShadow:
             "0 4px 6px -1px rgba(232,104,138,0.08), 0 12px 40px -4px rgba(232,104,138,0.14), 0 0 0 1px rgba(232,104,138,0.1)",
@@ -276,10 +276,10 @@ export default function App() {
         </div>
 
         {/* 2-Column Main Layout */}
-        <div className="flex flex-col md:flex-row min-h-[500px]">
+        <div className="flex flex-col md:flex-row min-h-[600px]">
           {/* Left Column: Photo Preview */}
           <div
-            className="w-full md:w-[50%] p-6 flex flex-col"
+            className="w-full md:w-[55%] p-6 flex flex-col"
             style={{
               borderRight: `1px solid ${P.pinkBorder}`,
               background: P.bg,
@@ -297,7 +297,7 @@ export default function App() {
               style={{
                 background: "#fff",
                 border: `1.5px dashed ${P.pinkDash}`,
-                minHeight: 320,
+                minHeight: 500,
               }}
             >
               {currentFile ? (
@@ -305,7 +305,7 @@ export default function App() {
                   <img
                     src={currentFile.url}
                     alt={currentFile.name}
-                    className="max-w-full max-h-[300px] object-contain rounded-md shadow-sm"
+                    className="max-w-full max-h-[480px] object-contain rounded-md shadow-sm"
                   />
                   {isRenaming && (
                     <div className="absolute inset-0 bg-white/70 flex items-center justify-center backdrop-blur-sm transition-all">
@@ -405,7 +405,7 @@ export default function App() {
           </div>
 
           {/* Right Column: Scanner & Results */}
-          <div className="w-full md:w-[50%] flex flex-col">
+          <div className="w-full md:w-[45%] flex flex-col">
             {/* Input Section */}
             <div
               className="px-8 pt-6 pb-6"
