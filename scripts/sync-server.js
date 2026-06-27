@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 3009;
 
 const OUTPUT_PATH = process.env.NODE_ENV === 'production' 
-  ? '/var/www/wr.naelvi.com/html/rename/perhiasan.json' 
+  ? '/var/www/wr.naelvi.com/html/rename/dist/perhiasan.json' 
   : path.join(process.cwd(), 'public/perhiasan.json');
 
 const server = http.createServer((req, res) => {
