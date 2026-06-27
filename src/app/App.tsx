@@ -61,6 +61,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [shake, setShake] = useState(false);
   const [renameSuccess, setRenameSuccess] = useState(false);
+  const [autoZoom, setAutoZoom] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [database, setDatabase] = useState<Record<string, ProductData>>({});
@@ -301,12 +302,31 @@ export default function App() {
               }}
             >
               {currentFile ? (
-                <div className="w-full h-full p-2 flex items-center justify-center">
+                <div className="w-full h-full p-2 flex items-center justify-center overflow-hidden">
                   <img
                     src={currentFile.url}
                     alt={currentFile.name}
-                    className="max-w-full max-h-[480px] object-contain rounded-md shadow-sm"
+                    className={`max-w-full max-h-[480px] object-contain rounded-md shadow-sm transition-transform duration-300 ${autoZoom ? 'scale-[1.8]' : 'scale-100'}`}
                   />
+                  
+                  {/* Zoom Toggle */}
+                  <button
+                    onClick={() => setAutoZoom(!autoZoom)}
+                    className="absolute top-4 right-4 bg-white/80 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-1.5 text-xs font-bold shadow-sm border border-gray-100 hover:bg-white transition-all z-10"
+                    style={{ color: autoZoom ? P.pink : P.textSub }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M6.5 13a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13zM1 6.5a5.5 5.5 0 1 0 11 0 5.5 5.5 0 0 0-11 0z"/>
+                      <path d="M10.344 10.344a.5.5 0 0 1 .707 0l3.879 3.879a.5.5 0 0 1-.707.707l-3.879-3.879a.5.5 0 0 1 0-.707z"/>
+                      {autoZoom ? (
+                        <path d="M4 6.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5z"/>
+                      ) : (
+                        <path d="M6.5 4a.5.5 0 0 1 .5.5v2h2a.5.5 0 0 1 0 1h-2v2a.5.5 0 0 1-1 0v-2h-2a.5.5 0 0 1 0-1h2v-2a.5.5 0 0 1 .5-.5z"/>
+                      )}
+                    </svg>
+                    {autoZoom ? 'Zoom On' : 'Zoom Off'}
+                  </button>
+
                   {isRenaming && (
                     <div className="absolute inset-0 bg-white/70 flex items-center justify-center backdrop-blur-sm transition-all">
                       <div className="text-sm font-bold animate-pulse px-4 py-2 bg-white rounded-full shadow-sm" style={{color: P.pink}}>
