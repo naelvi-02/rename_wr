@@ -7,9 +7,8 @@ import fs from 'fs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 3009;
 
-const OUTPUT_PATH = process.env.NODE_ENV === 'production' 
-  ? '/var/www/wr.naelvi.com/html/rename/dist/perhiasan.json' 
-  : path.join(process.cwd(), 'public/perhiasan.json');
+// Di VPS, kita langsung hardcode ke dist folder biar aman
+const OUTPUT_PATH = '/var/www/wr.naelvi.com/html/rename/dist/perhiasan.json';
 
 const server = http.createServer((req, res) => {
   // Add CORS headers so web app can call it
