@@ -61,7 +61,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/sync') {
     console.log('Sync requested...');
     const syncProcess = spawn('node', [path.join(__dirname, 'fetch-data.js')], {
-      env: { ...process.env, NODE_ENV: 'production' },
+      env: { ...process.env, VPS_DEPLOY: 'true' },
       detached: true,
       stdio: 'ignore'
     });

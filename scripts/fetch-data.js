@@ -3,8 +3,9 @@ import path from 'path';
 import https from 'https';
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwRNHQT6i9OupMnQIA8th7IWF0sEfvnJcBY7NOx8gk-ssAHXWQtOFet3xB9ltQJcKsa/exec';
-// Di VPS, kita langsung hardcode ke dist folder biar aman
-const OUTPUT_PATH = '/var/www/wr.naelvi.com/html/rename/dist/perhiasan.json';
+const OUTPUT_PATH = process.env.VPS_DEPLOY === 'true'
+  ? '/var/www/wr.naelvi.com/html/rename/dist/perhiasan.json' 
+  : path.join(process.cwd(), 'public/perhiasan.json');
 
 function downloadJSON(url, retries = 3) {
   return new Promise((resolve, reject) => {
