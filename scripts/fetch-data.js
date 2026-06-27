@@ -1,69 +1,62 @@
 import fs from 'fs';
 import path from 'path';
 import https from 'https';
-import * as xlsx from 'xlsx';
 
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1WpKvUqaUrSJJ9qwG89guCElbv93ukgMR4QEsql7Z4Og/export?format=xlsx';
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwRNHQT6i9OupMnQIA8th7IWF0sEfvnJcBY7NOx8gk-ssAHXWQtOFet3xB9ltQJcKsa/exec';
 const OUTPUT_PATH = process.env.NODE_ENV === 'production' 
   ? '/var/www/wr.naelvi.com/html/rename/perhiasan.json' 
   : path.join(process.cwd(), 'public/perhiasan.json');
 
-function download(url, retries = 3) {
+function downloadJSON(url, retries = 3) {
   return new Promise((resolve, reject) => {
     https.get(url, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) {
-        return resolve(download(res.headers.location, retries));
+        return resolve(downloadJSON(res.headers.location, retries));
       }
       const chunks = [];
       res.on('data', chunk => chunks.push(chunk));
-      res.on('end', () => resolve(Buffer.concat(chunks)));
-      res.on('error', err => {
-        if (retries > 0) {
-          console.log(`Download failed: ${err.message}. Retrying... (${retries} left)`);
-          return resolve(download(url, retries - 1));
+      res.on('end', () => {
+        try {
+           const body = Buffer.concat(chunks).toString();
+           resolve(JSON.parse(body));
+        } catch (e) {
+           reject(e);
         }
+      });
+      res.on('error', err => {
+        if (retries > 0) return resolve(downloadJSON(url, retries - 1));
         reject(err);
       });
     }).on('error', err => {
-      if (retries > 0) {
-        console.log(`Download failed: ${err.message}. Retrying... (${retries} left)`);
-        return resolve(download(url, retries - 1));
-      }
+      if (retries > 0) return resolve(downloadJSON(url, retries - 1));
       reject(err);
     });
   });
 }
 
 async function syncData() {
-  console.log('Downloading Google Sheets data (.xlsx)...');
-  const buffer = await download(SHEET_URL);
-  
-  console.log('Parsing xlsx...');
-  const workbook = xlsx.read(buffer, { type: 'buffer' });
+  console.log('Downloading Google Sheets JSON Data...');
+  const jsonSheets = await downloadJSON(SHEET_URL);
   
   const database = {};
   
-  // Keywords for detecting new jewelry items
   const keywords = [
     'CINCIN', 'GELANG', 'KALUNG', 'LIONTIN', 'ANTING', 'TINDIK', 
     'BROS', 'MAINAN', 'RANTAI', 'SET', 'GIWANG', 'BANGLE', 
     'C/C', 'G/L', 'K/L', 'CC', 'GL', 'KL', 'LT', 'AT', 'GW'
   ];
+	  function isNewItem(name) {
 
-  function isNewItem(name) {
-    const upper = name.toUpperCase();
-    for (const kw of keywords) {
-      if (upper.startsWith(kw)) return true;
-    }
-    if (/^\d+/.test(name)) return true;
-    return false;
-  }
+	const upper = String(name || '').trim().toUpperCase();
+		for (const kw of keywords) {
+		  if (upper.startsWith(kw)) return true;
+		}
+		if (/^\d+/.test(upper)) return true;
+		return false;
+	}
   
-  // Iterate all sheets
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    // Convert to array of arrays
-    const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  for (const sheetName of Object.keys(jsonSheets)) {
+    const rows = jsonSheets[sheetName];
     
     let currentBaseName = '';
     let currentNamaBarang = '';
@@ -81,14 +74,8 @@ async function syncData() {
       let kadarIdx = 7;
       let nampanIdx = 8;
 
-      // Auto-detect missing Foto column (which shifts everything left by 1)
       if (String(row[2] || '').trim().match(/^\d{8}$/)) {
-        namaIdx = 1;
-        barIdx = 2;
-        beratIdx = 3;
-        ukuranIdx = 4;
-        kadarIdx = 6;
-        nampanIdx = 7;
+        namaIdx = 1; barIdx = 2; beratIdx = 3; ukuranIdx = 4; kadarIdx = 6; nampanIdx = 7;
       }
 
       const namaBarang = String(row[namaIdx] || '').trim();
@@ -103,7 +90,6 @@ async function syncData() {
           currentBaseName = namaBarang;
           currentNamaBarang = namaBarang;
         } else {
-          // Continuation of the previous base name
           currentNamaBarang = currentBaseName ? currentBaseName + ' ' + namaBarang : namaBarang;
         }
       }
@@ -113,7 +99,6 @@ async function syncData() {
       
       if (!barcode || !currentNamaBarang || barcode.toLowerCase().includes('barcode')) continue;
       
-      // Clean multiple spaces
       const genName = `${currentNamaBarang} ${barcode} ${currentKadar} ${currentNampan}`.trim().replace(/\s+/g, ' ');
       
       database[barcode] = {
