@@ -91,9 +91,9 @@ export default function App() {
     try {
       const res = await fetch('/rename/api/sync', { method: 'POST' });
       if (res.ok) {
-        await loadData();
+        alert('Sinkronisasi sedang berjalan di background (butuh waktu ~2 menit karena ukuran Excel 200MB+). Silakan tunggu sebentar lalu muat ulang (refresh) halaman ini nanti.');
       } else {
-        alert('Sync failed! Cek Nginx atau script sync.');
+        alert('Sync API returned an error.');
       }
     } catch (e) {
       console.error(e);

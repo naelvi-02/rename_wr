@@ -20,22 +20,15 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/sync') {
     console.log('Sync requested...');
     const syncProcess = spawn('node', [path.join(__dirname, 'fetch-data.js')], {
-      env: { ...process.env, NODE_ENV: 'production' }
+      env: { ...process.env, NODE_ENV: 'production' },
+      detached: true,
+      stdio: 'ignore'
     });
     
-    let output = '';
-    syncProcess.stdout.on('data', (data) => output += data.toString());
-    syncProcess.stderr.on('data', (data) => output += data.toString());
+    syncProcess.unref(); // Allow server to continue without waiting
     
-    syncProcess.on('close', (code) => {
-      if (code === 0) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, message: 'Sync complete', log: output }));
-      } else {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Sync failed', log: output }));
-      }
-    });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Sync started in background' }));
   } else {
     res.writeHead(404);
     res.end('Not Found');
