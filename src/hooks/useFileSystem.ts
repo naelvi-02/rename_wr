@@ -13,6 +13,10 @@ export const useFileSystem = () => {
   const [isRenaming, setIsRenaming] = useState(false);
 
   const openDirectory = async () => {
+    if (!('showDirectoryPicker' in window)) {
+      alert("Browser Anda tidak mendukung fitur buka folder (File System Access API). Mohon gunakan Google Chrome versi terbaru di PC/Laptop.");
+      return;
+    }
     try {
       // @ts-ignore
       const dirHandle = await window.showDirectoryPicker({
@@ -40,8 +44,11 @@ export const useFileSystem = () => {
       
       setFiles(fileList);
       setCurrentIndex(0);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error opening directory:', err);
+      if (err.name !== 'AbortError') {
+        alert('Gagal membuka folder: ' + err.message);
+      }
     }
   };
 
