@@ -27,7 +27,7 @@ jobs:
       - name: Build Application (and sync data)
         run: npm run build
 
-      - name: Copy to VPS
+      - name: Copy UI to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -36,4 +36,15 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           source: "dist/*"
           target: "/var/www/wr.naelvi.com/html/rename/"
+          strip_components: 1
+
+      - name: Copy Scripts to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_PORT }}
+          source: "scripts/*"
+          target: "/var/www/wr.naelvi.com/html/rename/scripts/"
           strip_components: 1
