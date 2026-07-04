@@ -61,7 +61,9 @@ export const useFileSystem = () => {
     try {
       // Get extension from original file
       const ext = currentItem.name.split('.').pop() || 'jpg';
-      const newName = `${newNameBase}.${ext}`;
+      // Bersihkan nama file dari karakter terlarang di Windows/OS lain (\/:*?"<>|)
+      const safeNameBase = newNameBase.replace(/[\\/:*?"<>|]/g, '-');
+      const newName = `${safeNameBase}.${ext}`;
       
       // Read original file
       const file = await currentItem.handle.getFile();
