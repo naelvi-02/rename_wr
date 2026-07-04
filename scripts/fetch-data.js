@@ -43,7 +43,7 @@ async function syncData() {
   const keywords = [
     'CINCIN', 'GELANG', 'KALUNG', 'LIONTIN', 'ANTING', 'TINDIK', 
     'BROS', 'MAINAN', 'RANTAI', 'SET', 'GIWANG', 'BANGLE', 
-    'C/C', 'G/L', 'K/L', 'CC', 'GL', 'KL', 'LT', 'AT', 'GW'
+    'C/C', 'G/L', 'K/L', 'CC', 'GL', 'KL', 'LT', 'AT', 'GW', 'ANT'
   ];
 	  function isNewItem(name) {
 
