@@ -63,7 +63,33 @@ export const useFileSystem = () => {
       const ext = currentItem.name.split('.').pop() || 'jpg';
       // Bersihkan nama file dari karakter terlarang di Windows/OS lain (\/:*?"<>|)
       const safeNameBase = newNameBase.replace(/[\\/:*?"<>|]/g, '-');
-      const newName = `${safeNameBase}.${ext}`;
+      
+      let counter = 0;
+      let newName = '';
+      let fileHandleExists = true;
+      
+      while (fileHandleExists) {
+        let nameToTry = safeNameBase;
+        if (counter === 1) {
+          nameToTry = `${safeNameBase} KAIT`;
+        } else if (counter > 1) {
+          nameToTry = `${safeNameBase} KAIT ${counter}`;
+        }
+        newName = `${nameToTry}.${ext}`;
+        
+        try {
+          // Jika berhasil dapat fileHandle, berarti file sudah ada, kita harus lanjut loop (counter++)
+          await directoryHandle.getFileHandle(newName);
+          counter++;
+        } catch (e: any) {
+          // Jika error-nya NotFoundError, berarti nama file ini aman untuk digunakan
+          if (e.name === 'NotFoundError') {
+            fileHandleExists = false;
+          } else {
+            throw e; // Error lain (misal permission denied) kita lempar ke atas
+          }
+        }
+      }
       
       // Read original file
       const file = await currentItem.handle.getFile();

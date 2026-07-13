@@ -140,8 +140,6 @@ export default function App() {
     }
 
     if (lastScanRef.current.barcode === trimmed) {
-      scanCount = lastScanRef.current.count + 1;
-      lastScanRef.current.count = scanCount;
       lastScanRef.current.timestamp = now;
     } else {
       lastScanRef.current = { barcode: trimmed, timestamp: now, count: 0 };
@@ -166,15 +164,8 @@ export default function App() {
       setNotFound(false);
 
       if (currentFile) {
-        let finalName = found.generatedName;
-        if (scanCount === 1) {
-          finalName += " KAIT";
-        } else if (scanCount > 1) {
-          finalName += ` KAIT ${scanCount}`;
-        }
-
         // Auto rename logic
-        const success = await renameCurrentFile(finalName);
+        const success = await renameCurrentFile(found.generatedName);
         if (success) {
           setRenameSuccess(true);
           setTimeout(() => setRenameSuccess(false), 2000);
