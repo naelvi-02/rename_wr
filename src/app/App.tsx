@@ -63,6 +63,11 @@ export default function App() {
   const [renameSuccess, setRenameSuccess] = useState(false);
   const [autoZoom, setAutoZoom] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastScanRef = useRef<{ barcode: string; timestamp: number; count: number }>({
+    barcode: "",
+    timestamp: 0,
+    count: 0
+  });
 
   const [database, setDatabase] = useState<Record<string, ProductData>>({});
   const [totalDb, setTotalDb] = useState(0);
@@ -124,6 +129,24 @@ export default function App() {
     const trimmed = inputValue.trim();
     if (!trimmed) return;
 
+    const now = Date.now();
+    let scanCount = 0;
+
+    // Jika barcode sama dan di-scan dalam waktu kurang dari 1.5 detik (1500ms), 
+    // anggap itu glitch dari hardware scanner (double scan otomatis)
+    if (lastScanRef.current.barcode === trimmed && (now - lastScanRef.current.timestamp) < 1500) {
+      setInputValue(""); // bersihkan input biar nggak nyangkut
+      return; 
+    }
+
+    if (lastScanRef.current.barcode === trimmed) {
+      scanCount = lastScanRef.current.count + 1;
+      lastScanRef.current.count = scanCount;
+      lastScanRef.current.timestamp = now;
+    } else {
+      lastScanRef.current = { barcode: trimmed, timestamp: now, count: 0 };
+    }
+
     let found = database[trimmed];
 
     // Fallback: 4 digit suffix search
@@ -133,6 +156,8 @@ export default function App() {
       );
       if (matchKey) {
         found = database[matchKey];
+        // update the stored barcode to the actual full barcode so next scan works correctly
+        lastScanRef.current.barcode = matchKey;
       }
     }
 
@@ -141,8 +166,15 @@ export default function App() {
       setNotFound(false);
 
       if (currentFile) {
+        let finalName = found.generatedName;
+        if (scanCount === 1) {
+          finalName += " KAIT";
+        } else if (scanCount > 1) {
+          finalName += ` KAIT ${scanCount}`;
+        }
+
         // Auto rename logic
-        const success = await renameCurrentFile(found.generatedName);
+        const success = await renameCurrentFile(finalName);
         if (success) {
           setRenameSuccess(true);
           setTimeout(() => setRenameSuccess(false), 2000);
