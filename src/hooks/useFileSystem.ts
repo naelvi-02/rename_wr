@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 export interface FileItem {
   handle: any;
+  parentDirHandle: any;
   name: string;
   url: string;
 }
@@ -25,19 +26,27 @@ export const useFileSystem = () => {
       setDirectoryHandle(dirHandle);
 
       const fileList: FileItem[] = [];
-      // @ts-ignore
-      for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'file') {
-          const file = await entry.getFile();
-          if (file.type.startsWith('image/')) {
-            fileList.push({
-              handle: entry,
-              name: entry.name,
-              url: URL.createObjectURL(file),
-            });
+      
+      const scanDirectory = async (dirHandle: any) => {
+        // @ts-ignore
+        for await (const entry of dirHandle.values()) {
+          if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            if (file.type.startsWith('image/')) {
+              fileList.push({
+                handle: entry,
+                parentDirHandle: dirHandle,
+                name: entry.name,
+                url: URL.createObjectURL(file),
+              });
+            }
+          } else if (entry.kind === 'directory') {
+            await scanDirectory(entry);
           }
         }
-      }
+      };
+
+      await scanDirectory(dirHandle);
       
       // Sort alphabetically
       fileList.sort((a, b) => a.name.localeCompare(b.name));
@@ -79,7 +88,7 @@ export const useFileSystem = () => {
         
         try {
           // Jika berhasil dapat fileHandle, berarti file sudah ada, kita harus lanjut loop (counter++)
-          await directoryHandle.getFileHandle(newName);
+          await currentItem.parentDirHandle.getFileHandle(newName);
           counter++;
         } catch (e: any) {
           // Jika error-nya NotFoundError, berarti nama file ini aman untuk digunakan
@@ -95,7 +104,7 @@ export const useFileSystem = () => {
       const file = await currentItem.handle.getFile();
       
       // Create new file
-      const newFileHandle = await directoryHandle.getFileHandle(newName, { create: true });
+      const newFileHandle = await currentItem.parentDirHandle.getFileHandle(newName, { create: true });
       const writable = await newFileHandle.createWritable();
       
       // Write data
@@ -103,7 +112,7 @@ export const useFileSystem = () => {
       await writable.close();
       
       // Delete old file
-      await directoryHandle.removeEntry(currentItem.name);
+      await currentItem.parentDirHandle.removeEntry(currentItem.name);
       
       // Revoke old URL to prevent memory leak
       URL.revokeObjectURL(currentItem.url);
