@@ -165,15 +165,15 @@ export default function App() {
 
       if (currentFile) {
         // Auto rename logic
-        const success = await renameCurrentFile(found.generatedName);
-        if (success) {
+        const renameRes = await renameCurrentFile(found.generatedName);
+        if (renameRes.success) {
           setRenameSuccess(true);
           setTimeout(() => setRenameSuccess(false), 2000);
           setInputValue(""); // Auto clear for next scan
           // Refocus input
           setTimeout(() => inputRef.current?.focus(), 100);
         } else {
-          alert("Gagal me-rename file. Pastikan izin akses folder diberikan.");
+          alert(`Gagal me-rename file: ${renameRes.error}\nPastikan file tidak sedang dibuka di aplikasi lain.`);
         }
       } else {
         // Classic mode: just copy to clipboard

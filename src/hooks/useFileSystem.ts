@@ -61,8 +61,10 @@ export const useFileSystem = () => {
     }
   };
 
-  const renameCurrentFile = async (newNameBase: string) => {
-    if (!directoryHandle || files.length === 0 || currentIndex >= files.length) return false;
+  const renameCurrentFile = async (newNameBase: string): Promise<{success: boolean, error?: string}> => {
+    if (!directoryHandle || files.length === 0 || currentIndex >= files.length) {
+      return { success: false, error: 'Directory handle not found or no files left' };
+    }
     
     setIsRenaming(true);
     const currentItem = files[currentIndex];
@@ -122,11 +124,11 @@ export const useFileSystem = () => {
       // currentIndex stays the same, which effectively selects the next file in the array
       
       setIsRenaming(false);
-      return true;
-    } catch (err) {
+      return { success: true };
+    } catch (err: any) {
       console.error('Error renaming file:', err);
       setIsRenaming(false);
-      return false;
+      return { success: false, error: err.message || err.toString() };
     }
   };
 
