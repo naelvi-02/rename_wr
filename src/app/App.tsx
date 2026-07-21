@@ -111,18 +111,44 @@ export default function App() {
     setSyncing(true);
     try {
       const res = await fetch("/rename/api/sync", { method: "POST" });
-      if (res.ok) {
-        alert(
-          "Sinkronisasi sedang berjalan di background (butuh waktu ~2 menit karena ukuran Excel 200MB+). Silakan tunggu sebentar lalu muat ulang (refresh) halaman ini nanti."
-        );
-      } else {
+      if (!res.ok) {
         alert("Sync API returned an error.");
+        return;
       }
+      // Poll until lastUpdated changes (or timeout ~90s)
+      const prevUpdated = lastUpdated;
+      let ok = false;
+      for (let i = 0; i < 18; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        await loadData();
+        // loadData updates state async; re-fetch to compare timestamp
+        const check = await fetch("/rename/perhiasan.json?" + Date.now());
+        const data = await check.json();
+        if (data.lastUpdated) {
+          const label = new Date(data.lastUpdated).toLocaleString("id-ID", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          });
+          if (label !== prevUpdated || i >= 2) {
+            setDatabase(data.items || {});
+            setTotalDb(data.total || 0);
+            setLastUpdated(label);
+            ok = true;
+            break;
+          }
+        }
+      }
+      alert(
+        ok
+          ? "Sync selesai. Database diperbarui tanpa refresh halaman."
+          : "Sync dipicu. Kalau data masih lama, tunggu sebentar lalu klik Sync lagi."
+      );
     } catch (e) {
       console.error(e);
       alert("Gagal panggil API sync.");
+    } finally {
+      setSyncing(false);
     }
-    setSyncing(false);
   };
 
   const handleSearch = async () => {
