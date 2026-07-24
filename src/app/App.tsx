@@ -573,7 +573,7 @@ export default function App() {
                       className="text-base font-semibold"
                       style={{ color: P.text, letterSpacing: "-0.01em" }}
                     >
-                      {result.namaBarang}
+                      {result.namaBarang || "(Tanpa Nama)"}
                     </span>
                   </div>
 
