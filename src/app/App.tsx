@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useFileSystem } from "../hooks/useFileSystem";
+import { useGroupMode } from "../hooks/useGroupMode";
 
 interface ProductData {
   namaBarang: string;
@@ -9,6 +10,16 @@ interface ProductData {
   berat?: string;
   ukuran?: string;
   generatedName: string;
+}
+
+interface GroupInfo {
+  model: string;
+  scannedBarcode: string;
+  kadar: string;
+  nampan: string;
+  variants: ProductData[];
+  txtFileName: string | null;
+  warning?: string;
 }
 
 // Robust copy that works in sandboxed iframes without clipboard API access
@@ -73,6 +84,22 @@ export default function App() {
   const [totalDb, setTotalDb] = useState(0);
   const [lastUpdated, setLastUpdated] = useState("");
   const [syncing, setSyncing] = useState(false);
+
+  // ===== Mode Grup =====
+  const [groupMode, setGroupMode] = useState(false);
+  const [groupResult, setGroupResult] = useState<GroupInfo | null>(null);
+  const [savingTxt, setSavingTxt] = useState(false);
+
+  const {
+    rootHandle,
+    folders,
+    activeFolder,
+    folderImages,
+    loading: folderLoading,
+    openRootDirectory,
+    selectFolder,
+    writeTxt,
+  } = useGroupMode();
 
   const {
     directoryHandle,
@@ -223,6 +250,128 @@ export default function App() {
     }
   };
 
+  // ===== Mode Grup: resolve nama induk + semua varian dari 1 barcode =====
+  const resolveModelGroup = (scanned: ProductData): GroupInfo => {
+    const model = scanned.namaBarang;
+    const variants: ProductData[] = [];
+
+    for (const key of Object.keys(database)) {
+      const item = database[key];
+      if (item && item.namaBarang === model) {
+        variants.push(item);
+      }
+    }
+
+    const seen = new Set<string>();
+    const unique = variants.filter((v) => {
+      if (seen.has(v.barcode)) return false;
+      seen.add(v.barcode);
+      return true;
+    });
+
+    const warning =
+      unique.length === 0
+        ? "Tidak ada varian lain ditemukan untuk model ini."
+        : undefined;
+
+    return {
+      model,
+      scannedBarcode: scanned.barcode,
+      kadar: scanned.kadar,
+      nampan: scanned.nampan,
+      variants: unique.length > 0 ? unique : [scanned],
+      txtFileName: null,
+      warning,
+    };
+  };
+
+  const buildGroupTxt = (g: GroupInfo): string => {
+    const lines: string[] = [];
+    lines.push(g.model.toUpperCase());
+    lines.push("=".repeat(Math.max(20, g.model.length + 4)));
+    lines.push(`Kadar: ${g.kadar || "-"}   Nampan: ${g.nampan || "-"}`);
+    lines.push(`Jumlah Varian: ${g.variants.length}   Scanned: ${g.scannedBarcode}`);
+    lines.push("");
+    for (const v of g.variants) {
+      const parts = [
+        v.barcode,
+        v.berat ? `${v.berat}g` : null,
+        v.ukuran ? `Size ${v.ukuran}` : null,
+        v.generatedName,
+      ].filter(Boolean);
+      lines.push(parts.join("  |  "));
+    }
+    lines.push("");
+    lines.push(`Total: ${g.variants.length} varian`);
+    return lines.join("\n");
+  };
+
+  const handleGroupSearch = async () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+
+    const now = Date.now();
+    // Debounce double-scan hardware scanner (1.5s)
+    if (
+      lastScanRef.current.barcode === trimmed &&
+      now - lastScanRef.current.timestamp < 1500
+    ) {
+      setInputValue("");
+      return;
+    }
+    if (lastScanRef.current.barcode === trimmed) {
+      lastScanRef.current.timestamp = now;
+    } else {
+      lastScanRef.current = { barcode: trimmed, timestamp: now, count: 0 };
+    }
+
+    let found = database[trimmed];
+    if (!found && trimmed.length === 4) {
+      const matchKey = Object.keys(database).find((key) =>
+        key.endsWith(trimmed)
+      );
+      if (matchKey) found = database[matchKey];
+    }
+
+    if (!found) {
+      setResult(null);
+      setGroupResult(null);
+      setNotFound(true);
+      setShake(true);
+      setTimeout(() => setShake(false), 450);
+      return;
+    }
+
+    setNotFound(false);
+    setResult(null);
+
+    const group = resolveModelGroup(found);
+    setGroupResult(group);
+
+    // Auto-generate txt ke folder kategori aktif
+    if (activeFolder) {
+      setSavingTxt(true);
+      const base = `${group.model} ${group.kadar} ${group.nampan}`.trim();
+      const content = buildGroupTxt(group);
+      const res = await writeTxt(base, content);
+      setSavingTxt(false);
+      if (res.success) {
+        setGroupResult({ ...group, txtFileName: res.fileName || null });
+        setInputValue("");
+        setTimeout(() => inputRef.current?.focus(), 100);
+      } else {
+        alert(`Gagal membuat file txt: ${res.error}`);
+      }
+    }
+  };
+
+  const handleGroupKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleGroupSearch();
+    }
+  };
+
   const handleCopy = () => {
     if (!result) return;
     copyToClipboard(result.generatedName);
@@ -289,27 +438,63 @@ export default function App() {
             </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
+            {/* Toggle Mode Grup */}
             <button
-              onClick={openDirectory}
-              className="shrink-0 mt-0.5 rounded-full px-5 py-2 text-sm font-bold transition-all shadow-sm flex items-center gap-2"
-              style={{
-                background: P.pink,
-                color: "#fff",
+              onClick={() => {
+                const next = !groupMode;
+                setGroupMode(next);
+                setGroupResult(null);
+                setResult(null);
+                setNotFound(false);
+                setInputValue("");
               }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLButtonElement).style.background =
-                  P.pinkLight)
-              }
-              onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLButtonElement).style.background = P.pink)
-              }
+              className="shrink-0 mt-0.5 rounded-full px-4 py-2 text-sm font-bold transition-all"
+              style={{
+                background: groupMode ? P.pink : P.pinkPale,
+                color: groupMode ? "#fff" : P.pink,
+                boxShadow: groupMode ? `0 0 0 3px ${P.pinkRing}` : "none",
+              }}
+              title="Mode Grup: pilih folder utama, scan 1 barang per folder kategori, otomatis buat file .txt berisi semua varian"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/>
-              </svg>
-              Buka Folder
+              Mode Grup {groupMode ? "ON" : "OFF"}
             </button>
+            {groupMode ? (
+              <button
+                onClick={openRootDirectory}
+                className="shrink-0 mt-0.5 rounded-full px-5 py-2 text-sm font-bold transition-all shadow-sm flex items-center gap-2"
+                style={{
+                  background: P.pink,
+                  color: "#fff",
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/>
+                </svg>
+                Buka Folder Utama
+              </button>
+            ) : (
+              <button
+                onClick={openDirectory}
+                className="shrink-0 mt-0.5 rounded-full px-5 py-2 text-sm font-bold transition-all shadow-sm flex items-center gap-2"
+                style={{
+                  background: P.pink,
+                  color: "#fff",
+                }}
+                onMouseEnter={(e) =>
+                  ((e.currentTarget as HTMLButtonElement).style.background =
+                    P.pinkLight)
+                }
+                onMouseLeave={(e) =>
+                  ((e.currentTarget as HTMLButtonElement).style.background = P.pink)
+                }
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/>
+                </svg>
+                Buka Folder
+              </button>
+            )}
             <button
               onClick={handleSync}
               disabled={syncing}
@@ -339,7 +524,15 @@ export default function App() {
               className="block text-[11px] font-semibold uppercase tracking-widest mb-3"
               style={{ color: P.textMuted, letterSpacing: "0.12em" }}
             >
-              {directoryHandle ? "Foto Saat Ini" : "Preview Foto"}
+              {groupMode
+                ? activeFolder
+                  ? `Kategori Aktif: ${activeFolder.name}`
+                  : rootHandle
+                    ? "Pilih Folder Kategori di Bawah"
+                    : "Folder Kategori"
+                : directoryHandle
+                  ? "Foto Saat Ini"
+                  : "Preview Foto"}
             </label>
 
             <div
@@ -350,7 +543,30 @@ export default function App() {
                 minHeight: 500,
               }}
             >
-              {currentFile ? (
+              {groupMode && activeFolder ? (
+                <div className="w-full h-full p-2 flex items-center justify-center overflow-hidden relative">
+                  {folderImages.length > 0 ? (
+                    <img
+                      src={folderImages[0].url}
+                      alt={folderImages[0].name}
+                      className="max-w-full max-h-[480px] object-contain rounded-md shadow-sm"
+                    />
+                  ) : (
+                    <div className="text-center p-6">
+                      <p className="text-sm font-medium" style={{ color: P.textMuted }}>
+                        Tidak ada foto di folder ini (hanya file non-gambar diabaikan)
+                      </p>
+                    </div>
+                  )}
+                  {folderLoading && (
+                    <div className="absolute inset-0 bg-white/70 flex items-center justify-center backdrop-blur-sm">
+                      <div className="text-sm font-bold animate-pulse px-4 py-2 bg-white rounded-full shadow-sm" style={{ color: P.pink }}>
+                        Memuat folder...
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : currentFile ? (
                 <div className="w-full h-full p-2 flex items-center justify-center overflow-hidden">
                   <img
                     src={currentFile.url}
@@ -411,7 +627,11 @@ export default function App() {
                     className="text-sm font-medium"
                     style={{ color: P.textMuted }}
                   >
-                    Klik "Buka Folder" untuk meload foto
+                    {groupMode
+                      ? rootHandle
+                        ? "Pilih folder kategori di bawah untuk melihat fotonya"
+                        : "Klik \"Buka Folder Utama\" untuk memilih folder berisi kategori"
+                      : "Klik \"Buka Folder\" untuk meload foto"}
                   </p>
                 </div>
               )}
@@ -429,47 +649,90 @@ export default function App() {
             )}
 
             {/* Thumbnail Queue */}
-            {files.length > 0 && (
-              <div className="mt-6">
-                <div className="flex justify-between items-end mb-2">
-                  <label
-                    className="block text-[11px] font-semibold uppercase tracking-widest"
-                    style={{ color: P.textMuted, letterSpacing: "0.12em" }}
-                  >
-                    Antrean Foto
-                  </label>
-                  <span className="text-xs font-bold" style={{ color: P.pink }}>
-                    {files.length} tersisa
-                  </span>
-                </div>
-                
-                <div 
-                  className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar"
-                  style={{ 
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: `${P.pinkRing} transparent`
-                  }}
-                >
-                  {files.map((file, idx) => (
-                    <button
-                      key={file.name}
-                      onClick={() => setCurrentIndex(idx)}
-                      className="shrink-0 rounded-lg overflow-hidden transition-all relative"
-                      style={{
-                        width: 60,
-                        height: 60,
-                        border: idx === currentIndex ? `2px solid ${P.pink}` : `1px solid ${P.pinkBorder}`,
-                        opacity: idx === currentIndex ? 1 : 0.6
-                      }}
+            {groupMode ? (
+              rootHandle && folders.length > 0 ? (
+                <div className="mt-6">
+                  <div className="flex justify-between items-end mb-2">
+                    <label
+                      className="block text-[11px] font-semibold uppercase tracking-widest"
+                      style={{ color: P.textMuted, letterSpacing: "0.12em" }}
                     >
-                      <img src={file.url} alt="thumb" className="w-full h-full object-cover" />
-                      {idx === currentIndex && (
-                        <div className="absolute bottom-0 inset-x-0 h-1 bg-pink-500"></div>
-                      )}
-                    </button>
-                  ))}
+                      Folder Kategori
+                    </label>
+                    <span className="text-xs font-bold" style={{ color: P.pink }}>
+                      {folders.length} folder
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {folders.map((f) => (
+                      <button
+                        key={f.name}
+                        onClick={() => selectFolder(f)}
+                        className="rounded-full px-4 py-2 text-xs font-bold transition-all"
+                        style={{
+                          background: activeFolder?.name === f.name ? P.pink : "#fff",
+                          color: activeFolder?.name === f.name ? "#fff" : P.textSub,
+                          border: `1px solid ${activeFolder?.name === f.name ? P.pink : P.pinkBorder}`,
+                          boxShadow: activeFolder?.name === f.name ? `0 0 0 3px ${P.pinkRing}` : "none",
+                        }}
+                      >
+                        📁 {f.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="mt-6 text-center">
+                  <p className="text-sm font-medium" style={{ color: P.textMuted }}>
+                    {rootHandle
+                      ? "Tidak ada subfolder di folder utama ini."
+                      : "Klik \"Buka Folder Utama\" untuk memilih folder berisi folder kategori."}
+                  </p>
+                </div>
+              )
+            ) : (
+              files.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex justify-between items-end mb-2">
+                    <label
+                      className="block text-[11px] font-semibold uppercase tracking-widest"
+                      style={{ color: P.textMuted, letterSpacing: "0.12em" }}
+                    >
+                      Antrean Foto
+                    </label>
+                    <span className="text-xs font-bold" style={{ color: P.pink }}>
+                      {files.length} tersisa
+                    </span>
+                  </div>
+
+                  <div
+                    className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar"
+                    style={{
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: `${P.pinkRing} transparent`
+                    }}
+                  >
+                    {files.map((file, idx) => (
+                      <button
+                        key={file.name}
+                        onClick={() => setCurrentIndex(idx)}
+                        className="shrink-0 rounded-lg overflow-hidden transition-all relative"
+                        style={{
+                          width: 60,
+                          height: 60,
+                          border: idx === currentIndex ? `2px solid ${P.pink}` : `1px solid ${P.pinkBorder}`,
+                          opacity: idx === currentIndex ? 1 : 0.6
+                        }}
+                      >
+                        <img src={file.url} alt="thumb" className="w-full h-full object-cover" />
+                        {idx === currentIndex && (
+                          <div className="absolute bottom-0 inset-x-0 h-1 bg-pink-500"></div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
             )}
           </div>
 
@@ -493,7 +756,7 @@ export default function App() {
                     type="text"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
+                    onKeyDown={groupMode ? handleGroupKeyDown : handleKeyDown}
                     placeholder="Scan barcode..."
                     className="w-full rounded-lg px-4 py-3 text-sm transition-all duration-150 outline-none"
                     style={{
@@ -509,7 +772,7 @@ export default function App() {
                   />
                 </div>
                 <button
-                  onClick={handleSearch}
+                  onClick={groupMode ? handleGroupSearch : handleSearch}
                   className="rounded-lg px-5 py-3 text-sm font-semibold transition-all duration-150 shrink-0"
                   style={{ background: P.pink, color: "#fff" }}
                   onMouseEnter={(e) =>
@@ -537,6 +800,111 @@ export default function App() {
                 </p>
               )}
             </div>
+
+            {/* Group Result Panel */}
+            {groupMode && groupResult && (
+              <div
+                className="px-8 pt-6 pb-6"
+                style={{ borderBottom: `1px solid ${P.pinkBorder}` }}
+              >
+                <label
+                  className="block text-[11px] font-semibold uppercase tracking-widest mb-4"
+                  style={{ color: P.textMuted, letterSpacing: "0.12em" }}
+                >
+                  Grup Terdeteksi
+                </label>
+
+                <div
+                  className="rounded-lg p-5"
+                  style={{ background: P.bg, border: `1px solid ${P.pinkBorder}` }}
+                >
+                  <div
+                    className="pb-4"
+                    style={{ borderBottom: `1px solid ${P.pinkBorder}` }}
+                  >
+                    <span className="text-[11px] font-medium block mb-1" style={{ color: P.textSub }}>
+                      Model Induk
+                    </span>
+                    <span className="text-base font-semibold" style={{ color: P.text }}>
+                      {groupResult.model || "(Tanpa Nama)"}
+                    </span>
+                  </div>
+
+                  <div className="py-4 grid grid-cols-2 gap-4" style={{ borderBottom: `1px solid ${P.pinkBorder}` }}>
+                    <div>
+                      <span className="text-[11px] font-medium block mb-1" style={{ color: P.textSub }}>
+                        Kadar
+                      </span>
+                      <span className="text-sm font-semibold" style={{ color: P.text }}>
+                        {groupResult.kadar || "-"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-medium block mb-1" style={{ color: P.textSub }}>
+                        Nampan
+                      </span>
+                      <span className="text-sm font-semibold" style={{ color: P.text }}>
+                        {groupResult.nampan || "-"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="py-4">
+                    <span className="text-[11px] font-medium block mb-2" style={{ color: P.textSub }}>
+                      Varian Ditemukan: {groupResult.variants.length}
+                    </span>
+                    <div
+                      className="rounded-md p-3 max-h-48 overflow-y-auto custom-scrollbar"
+                      style={{
+                        background: "#fff",
+                        border: `1px solid ${P.pinkBorder}`,
+                        fontFamily: "'JetBrains Mono', monospace",
+                      }}
+                    >
+                      {groupResult.variants.map((v) => (
+                        <div key={v.barcode} className="text-xs py-1 flex justify-between gap-3" style={{ color: P.textSub }}>
+                          <span style={{ color: P.pink, fontWeight: 600 }}>{v.barcode}</span>
+                          <span className="truncate text-right">
+                            {[v.berat ? `${v.berat}g` : null, v.ukuran ? `Size ${v.ukuran}` : null]
+                              .filter(Boolean)
+                              .join(" · ") || "-"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {savingTxt && (
+                    <div className="pt-3 text-sm font-bold animate-pulse" style={{ color: P.pink }}>
+                      Membuat file txt...
+                    </div>
+                  )}
+                  {!savingTxt && groupResult.txtFileName && (
+                    <div className="pt-3 flex items-center gap-2 text-sm font-semibold" style={{ color: P.green }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
+                      </svg>
+                      Tersimpan: {groupResult.txtFileName}
+                    </div>
+                  )}
+                  {!savingTxt && !groupResult.txtFileName && activeFolder && (
+                    <div className="pt-3 text-xs" style={{ color: P.textMuted }}>
+                      Scan barcode akan otomatis membuat file txt di folder ini.
+                    </div>
+                  )}
+                  {!activeFolder && (
+                    <div className="pt-3 text-xs font-semibold" style={{ color: P.red }}>
+                      Pilih folder kategori dulu di panel kiri — txt belum dibuat.
+                    </div>
+                  )}
+                  {groupResult.warning && (
+                    <div className="pt-3 text-xs" style={{ color: P.textMuted }}>
+                      {groupResult.warning}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Data Result Panel */}
             {result && (
