@@ -100,6 +100,7 @@ export default function App() {
     selectFolder,
     ensureCategoryFolder,
     writeTxt,
+    checkFolderHasTxt,
   } = useGroupMode();
 
   const {
@@ -365,6 +366,18 @@ export default function App() {
     if (!catFolder) {
       setSavingTxt(false);
       alert("Gagal membuat folder kategori di folder utama.");
+      return;
+    }
+    // Guard: folder sudah punya txt (sudah pernah di-scan) -> jangan diubah.
+    if (await checkFolderHasTxt(catFolder)) {
+      setSavingTxt(false);
+      setGroupResult({
+        ...group,
+        warning: `Folder "${catFolder.name}" sudah ada isinya — sudah pernah di-scan. Txt tidak diubah.`,
+        txtFileName: null,
+      });
+      setInputValue("");
+      setTimeout(() => inputRef.current?.focus(), 100);
       return;
     }
     const res = await writeTxt(base, content, catFolder);
@@ -928,8 +941,18 @@ export default function App() {
                     </div>
                   )}
                   {groupResult.warning && (
-                    <div className="pt-3 text-xs" style={{ color: P.textMuted }}>
-                      {groupResult.warning}
+                    <div
+                      className="pt-3 text-xs font-semibold"
+                      style={{
+                        color: "#b45309",
+                        background: "#fef3c7",
+                        border: "1px solid #fde68a",
+                        borderRadius: 6,
+                        padding: "8px 10px",
+                        marginTop: 12,
+                      }}
+                    >
+                      ⚠ {groupResult.warning}
                     </div>
                   )}
                 </div>

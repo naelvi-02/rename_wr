@@ -170,6 +170,11 @@ export const useGroupMode = () => {
     }
   };
 
+  // Cek apakah folder kategori sudah berisi file txt (sudah pernah di-scan).
+  const checkFolderHasTxt = async (folder: FolderItem): Promise<boolean> => {
+    return folderHasTxt(folder.handle);
+  };
+
   return {
     rootHandle,
     folders,
@@ -180,5 +185,6 @@ export const useGroupMode = () => {
     selectFolder,
     ensureCategoryFolder,
     writeTxt,
+    checkFolderHasTxt,
   };
 };
