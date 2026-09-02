@@ -66,6 +66,9 @@ async function syncData() {
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row) continue;
+
+      // Nomor baris asli di spreadsheet (row[0] biasanya membawa index dari Apps Script)
+      const sheetRow = parseInt(String(row[0] ?? ''), 10) || i + 1;
       
       let namaIdx = 2;
       let barIdx = 3;
@@ -108,7 +111,9 @@ async function syncData() {
         nampan: currentNampan,
         berat: berat,
         ukuran: ukuran,
-        generatedName: genName
+        generatedName: genName,
+        sheet: sheetName,
+        row: sheetRow
       };
     }
   }

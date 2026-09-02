@@ -255,12 +255,33 @@ export default function App() {
   // ===== Mode Grup: resolve nama induk + semua varian dari 1 barcode =====
   const resolveModelGroup = (scanned: ProductData): GroupInfo => {
     const model = scanned.namaBarang;
-    const variants: ProductData[] = [];
+    const scanRow = (scanned as any).row ?? null;
+    const scanSheet = (scanned as any).sheet ?? null;
+    const MAX_ROW_GAP = 25; // 1 foto = 1 blok model di sheet (biasanya < 20 baris)
 
-    for (const key of Object.keys(database)) {
-      const item = database[key];
-      if (item && item.namaBarang === model) {
-        variants.push(item);
+    let variants: ProductData[];
+    if (scanSheet !== null && scanRow !== null) {
+      // Mode akurat: sheet sama + baris berdekatan
+      variants = [];
+      for (const key of Object.keys(database)) {
+        const item = database[key];
+        if (
+          item &&
+          item.namaBarang === model &&
+          (item as any).sheet === scanSheet &&
+          Math.abs(((item as any).row ?? 0) - scanRow) <= MAX_ROW_GAP
+        ) {
+          variants.push(item);
+        }
+      }
+    } else {
+      // Fallback: data lama tanpa sheet/row -> nama sama (perilaku lama)
+      variants = [];
+      for (const key of Object.keys(database)) {
+        const item = database[key];
+        if (item && item.namaBarang === model) {
+          variants.push(item);
+        }
       }
     }
 
@@ -895,6 +916,20 @@ export default function App() {
                   <div className="py-4">
                     <span className="text-[11px] font-medium block mb-2" style={{ color: P.textSub }}>
                       Varian Ditemukan: {groupResult.variants.length}
+                      {groupResult.variants.length > 18 && (
+                        <span
+                          className="ml-2 font-semibold"
+                          style={{
+                            color: "#b45309",
+                            background: "#fef3c7",
+                            border: "1px solid #fde68a",
+                            borderRadius: 6,
+                            padding: "2px 8px",
+                          }}
+                        >
+                          ⚠ Melebihi 18 — cek kelengkapan/akurasi
+                        </span>
+                      )}
                     </span>
                     <div
                       className="rounded-md p-3 max-h-48 overflow-y-auto custom-scrollbar"
