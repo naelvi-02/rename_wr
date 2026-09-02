@@ -664,21 +664,38 @@ export default function App() {
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {folders.map((f) => (
-                      <button
-                        key={f.name}
-                        onClick={() => selectFolder(f)}
-                        className="rounded-full px-4 py-2 text-xs font-bold transition-all"
-                        style={{
-                          background: activeFolder?.name === f.name ? P.pink : "#fff",
-                          color: activeFolder?.name === f.name ? "#fff" : P.textSub,
-                          border: `1px solid ${activeFolder?.name === f.name ? P.pink : P.pinkBorder}`,
-                          boxShadow: activeFolder?.name === f.name ? `0 0 0 3px ${P.pinkRing}` : "none",
-                        }}
-                      >
-                        📁 {f.name}
-                      </button>
-                    ))}
+                    {folders.map((f) => {
+                      const isActive = activeFolder?.name === f.name;
+                      const done = !!f.hasTxt;
+                      return (
+                        <button
+                          key={f.name}
+                          onClick={() => selectFolder(f)}
+                          className="rounded-full px-4 py-2 text-xs font-bold transition-all"
+                          style={{
+                            background: done
+                              ? "#e8f5ec"
+                              : isActive
+                                ? P.pink
+                                : "#fff",
+                            color: done
+                              ? "#1e7d43"
+                              : isActive
+                                ? "#fff"
+                                : P.textSub,
+                            border: `1px solid ${done ? "#b7dfc3" : isActive ? P.pink : P.pinkBorder}`,
+                            boxShadow: isActive ? `0 0 0 3px ${P.pinkRing}` : "none",
+                          }}
+                          title={
+                            done
+                              ? "Folder ini sudah punya file txt"
+                              : "Belum ada txt di folder ini"
+                          }
+                        >
+                          {done ? "✅" : "📁"} {f.name}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (

@@ -3,12 +3,27 @@ import { useState } from 'react';
 export interface FolderItem {
   handle: any;
   name: string;
+  hasTxt?: boolean;
 }
 
 export interface FolderImage {
   name: string;
   url: string;
 }
+
+// Cek apakah folder berisi minimal 1 file .txt (tanda sudah pernah di-generate)
+const folderHasTxt = async (dirHandle: any): Promise<boolean> => {
+  try {
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.txt')) {
+        return true;
+      }
+    }
+  } catch {
+    // abaikan error scan, anggap belum ada
+  }
+  return false;
+};
 
 export const useGroupMode = () => {
   const [rootHandle, setRootHandle] = useState<any | null>(null);
@@ -35,6 +50,12 @@ export const useGroupMode = () => {
         }
       }
       subs.sort((a, b) => a.name.localeCompare(b.name));
+      // Tandai folder yang sudah berisi file .txt (sudah pernah di-generate)
+      await Promise.all(
+        subs.map(async (s) => {
+          s.hasTxt = await folderHasTxt(s.handle);
+        })
+      );
       setRootHandle(dirHandle);
       setFolders(subs);
       setActiveFolder(null);
@@ -104,6 +125,15 @@ export const useGroupMode = () => {
       const writable = await fh.createWritable();
       await writable.write(content);
       await writable.close();
+      // Tandai folder aktif sebagai sudah di-generate (update state tanpa rescan)
+      setFolders((prev) =>
+        prev.map((f) =>
+          f.name === activeFolder.name ? { ...f, hasTxt: true } : f
+        )
+      );
+      setActiveFolder((prev) =>
+        prev && prev.name === activeFolder.name ? { ...prev, hasTxt: true } : prev
+      );
       return { success: true, fileName: newName };
     } catch (err: any) {
       console.error('Error writing txt:', err);
