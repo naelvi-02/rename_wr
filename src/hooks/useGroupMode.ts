@@ -70,6 +70,30 @@ export const useGroupMode = () => {
     }
   };
 
+  // Buat (atau pakai-ulang) folder kategori di dalam folder utama.
+  // Dipakai flow auto: scan barcode -> folder "MODEL KADAR NAMPAN" -> txt di dalamnya.
+  const ensureCategoryFolder = async (name: string): Promise<FolderItem | null> => {
+    if (!rootHandle) return null;
+    const safe = name.replace(/[\\/:*?"<>|]/g, '-').trim();
+    if (!safe) return null;
+    try {
+      const dirHandle = await rootHandle.getDirectoryHandle(safe, { create: true });
+      // Daftarkan ke daftar progres jika belum ada
+      setFolders((prev) => {
+        if (prev.some((f) => f.name === safe)) {
+          return prev.map((f) => (f.name === safe ? { ...f, handle: dirHandle } : f));
+        }
+        const next = [...prev, { handle: dirHandle, name: safe }];
+        next.sort((a, b) => a.name.localeCompare(b.name));
+        return next;
+      });
+      return { handle: dirHandle, name: safe };
+    } catch (err: any) {
+      console.error('Error creating category folder:', err);
+      return null;
+    }
+  };
+
   // Pilih 1 folder kategori: scan foto di dalamnya (1 level) hanya untuk preview.
   const selectFolder = async (folder: FolderItem) => {
     setLoading(true);
@@ -95,10 +119,15 @@ export const useGroupMode = () => {
     }
   };
 
-  // Tulis file .txt ke folder kategori aktif.
-  // Jika nama sudah ada, otomatis jadi "nama 2.txt", "nama 3.txt", dst.
-  const writeTxt = async (baseName: string, content: string): Promise<{ success: boolean; fileName?: string; error?: string }> => {
-    if (!activeFolder) {
+  // Tulis file .txt. Secara default ke folder kategori aktif; jika diberikan
+  // targetFolder, tulis ke folder tersebut (dipakai flow auto-generate folder).
+  const writeTxt = async (
+    baseName: string,
+    content: string,
+    targetFolder?: FolderItem | null
+  ): Promise<{ success: boolean; fileName?: string; error?: string }> => {
+    const destFolder = targetFolder || activeFolder;
+    if (!destFolder) {
       return { success: false, error: 'Belum ada folder kategori yang dipilih' };
     }
     try {
@@ -110,7 +139,7 @@ export const useGroupMode = () => {
       while (exists) {
         newName = counter === 0 ? `${safeBase}.txt` : `${safeBase} ${counter + 1}.txt`;
         try {
-          await activeFolder.handle.getFileHandle(newName);
+          await destFolder.handle.getFileHandle(newName);
           counter++;
         } catch (e: any) {
           if (e.name === 'NotFoundError') {
@@ -121,18 +150,18 @@ export const useGroupMode = () => {
         }
       }
 
-      const fh = await activeFolder.handle.getFileHandle(newName, { create: true });
+      const fh = await destFolder.handle.getFileHandle(newName, { create: true });
       const writable = await fh.createWritable();
       await writable.write(content);
       await writable.close();
-      // Tandai folder aktif sebagai sudah di-generate (update state tanpa rescan)
+      // Tandai folder tujuan sebagai sudah di-generate (update state tanpa rescan)
       setFolders((prev) =>
         prev.map((f) =>
-          f.name === activeFolder.name ? { ...f, hasTxt: true } : f
+          f.name === destFolder.name ? { ...f, hasTxt: true } : f
         )
       );
       setActiveFolder((prev) =>
-        prev && prev.name === activeFolder.name ? { ...prev, hasTxt: true } : prev
+        prev && prev.name === destFolder.name ? { ...prev, hasTxt: true } : prev
       );
       return { success: true, fileName: newName };
     } catch (err: any) {
@@ -149,6 +178,7 @@ export const useGroupMode = () => {
     loading,
     openRootDirectory,
     selectFolder,
+    ensureCategoryFolder,
     writeTxt,
   };
 };

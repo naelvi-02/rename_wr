@@ -98,6 +98,7 @@ export default function App() {
     loading: folderLoading,
     openRootDirectory,
     selectFolder,
+    ensureCategoryFolder,
     writeTxt,
   } = useGroupMode();
 
@@ -348,20 +349,32 @@ export default function App() {
     const group = resolveModelGroup(found);
     setGroupResult(group);
 
-    // Auto-generate txt ke folder kategori aktif
-    if (activeFolder) {
-      setSavingTxt(true);
-      const base = `${group.model} ${group.kadar} ${group.nampan}`.trim();
-      const content = buildGroupTxt(group);
-      const res = await writeTxt(base, content);
+    // Auto: butuh folder utama sudah dipilih; folder kategori dibuat otomatis.
+    if (!rootHandle) {
+      setGroupResult({
+        ...group,
+        warning: "Klik \"Buka Folder Utama\" dulu sebelum scan.",
+      });
+      return;
+    }
+
+    setSavingTxt(true);
+    const base = `${group.model} ${group.kadar} ${group.nampan}`.trim();
+    const content = buildGroupTxt(group);
+    const catFolder = await ensureCategoryFolder(base);
+    if (!catFolder) {
       setSavingTxt(false);
-      if (res.success) {
-        setGroupResult({ ...group, txtFileName: res.fileName || null });
-        setInputValue("");
-        setTimeout(() => inputRef.current?.focus(), 100);
-      } else {
-        alert(`Gagal membuat file txt: ${res.error}`);
-      }
+      alert("Gagal membuat folder kategori di folder utama.");
+      return;
+    }
+    const res = await writeTxt(base, content, catFolder);
+    setSavingTxt(false);
+    if (res.success) {
+      setGroupResult({ ...group, txtFileName: res.fileName || null });
+      setInputValue("");
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } else {
+      alert(`Gagal membuat file txt: ${res.error}`);
     }
   };
 
@@ -904,14 +917,14 @@ export default function App() {
                       Tersimpan: {groupResult.txtFileName}
                     </div>
                   )}
-                  {!savingTxt && !groupResult.txtFileName && activeFolder && (
+                  {!savingTxt && !groupResult.txtFileName && rootHandle && (
                     <div className="pt-3 text-xs" style={{ color: P.textMuted }}>
-                      Scan barcode akan otomatis membuat file txt di folder ini.
+                      Folder kategori + txt akan dibuat otomatis saat scan.
                     </div>
                   )}
-                  {!activeFolder && (
+                  {!rootHandle && (
                     <div className="pt-3 text-xs font-semibold" style={{ color: P.red }}>
-                      Pilih folder kategori dulu di panel kiri — txt belum dibuat.
+                      Klik &quot;Buka Folder Utama&quot; dulu — folder &amp; txt belum bisa dibuat.
                     </div>
                   )}
                   {groupResult.warning && (
