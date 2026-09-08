@@ -685,7 +685,15 @@ export default function App() {
             </div>
 
             {currentFile && (
-              <div className="mt-3 text-center">
+              <div className="mt-3 text-center flex flex-col items-center gap-1">
+                {currentFile.path && currentFile.path.includes('/') && (
+                  <span
+                    className="text-[11px] font-medium tracking-wide"
+                    style={{ color: P.textMuted }}
+                  >
+                    📁 {currentFile.path.substring(0, currentFile.path.lastIndexOf('/'))}
+                  </span>
+                )}
                 <span
                   className="inline-block bg-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm"
                   style={{ color: P.textSub, border: `1px solid ${P.pinkBorder}` }}
@@ -778,8 +786,9 @@ export default function App() {
                   >
                     {files.map((file, idx) => (
                       <button
-                        key={file.name}
+                        key={`${file.path || file.name}_${idx}`}
                         onClick={() => setCurrentIndex(idx)}
+                        title={file.path || file.name}
                         className="shrink-0 rounded-lg overflow-hidden transition-all relative"
                         style={{
                           width: 60,
@@ -788,7 +797,7 @@ export default function App() {
                           opacity: idx === currentIndex ? 1 : 0.6
                         }}
                       >
-                        <img src={file.url} alt="thumb" className="w-full h-full object-cover" />
+                        <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
                         {idx === currentIndex && (
                           <div className="absolute bottom-0 inset-x-0 h-1 bg-pink-500"></div>
                         )}

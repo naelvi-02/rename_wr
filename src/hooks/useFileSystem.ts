@@ -5,6 +5,7 @@ export interface FileItem {
   parentDirHandle: any;
   name: string;
   url: string;
+  path: string;
 }
 
 export const useFileSystem = () => {
@@ -27,29 +28,31 @@ export const useFileSystem = () => {
 
       const fileList: FileItem[] = [];
       
-      const scanDirectory = async (dirHandle: any) => {
+      const scanDirectory = async (currentDirHandle: any, currentRelPath: string = '') => {
         // @ts-ignore
-        for await (const entry of dirHandle.values()) {
+        for await (const entry of currentDirHandle.values()) {
+          const entryRelPath = currentRelPath ? `${currentRelPath}/${entry.name}` : entry.name;
           if (entry.kind === 'file') {
             const file = await entry.getFile();
             if (file.type.startsWith('image/')) {
               fileList.push({
                 handle: entry,
-                parentDirHandle: dirHandle,
+                parentDirHandle: currentDirHandle,
                 name: entry.name,
                 url: URL.createObjectURL(file),
+                path: entryRelPath,
               });
             }
           } else if (entry.kind === 'directory') {
-            await scanDirectory(entry);
+            await scanDirectory(entry, entryRelPath);
           }
         }
       };
 
-      await scanDirectory(dirHandle);
+      await scanDirectory(dirHandle, '');
       
-      // Sort alphabetically
-      fileList.sort((a, b) => a.name.localeCompare(b.name));
+      // Sort berdasarkan folder path terlebih dahulu secara hierarkis (natural numeric)
+      fileList.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
       
       setFiles(fileList);
       setCurrentIndex(0);
