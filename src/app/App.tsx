@@ -69,6 +69,7 @@ export default function App() {
   const [inputValue, setInputValue] = useState("");
   const [result, setResult] = useState<ProductData | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [ambiguous, setAmbiguous] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shake, setShake] = useState(false);
   const [renameSuccess, setRenameSuccess] = useState(false);
@@ -79,6 +80,10 @@ export default function App() {
     timestamp: 0,
     count: 0
   });
+  // Synchronous lock to guard against two Enter events arriving before React
+  // re-renders and the isRenaming state propagates. Set before awaiting the
+  // rename and always released in finally.
+  const renameLockRef = useRef(false);
 
   const [database, setDatabase] = useState<Record<string, ProductData>>({});
   const [totalDb, setTotalDb] = useState(0);
@@ -184,51 +189,63 @@ export default function App() {
     const trimmed = inputValue.trim();
     if (!trimmed) return;
 
-    const now = Date.now();
-    let scanCount = 0;
-
-    // Jika barcode sama dan di-scan dalam waktu kurang dari 1.5 detik (1500ms), 
-    // anggap itu glitch dari hardware scanner (double scan otomatis)
+      // Hardware double-scan guard: suppress glitch events within 1500ms.
+      const now = Date.now();
     if (lastScanRef.current.barcode === trimmed && (now - lastScanRef.current.timestamp) < 1500) {
-      setInputValue(""); // bersihkan input biar nggak nyangkut
-      return; 
+      setInputValue("");
+      return;
     }
-
     if (lastScanRef.current.barcode === trimmed) {
       lastScanRef.current.timestamp = now;
     } else {
       lastScanRef.current = { barcode: trimmed, timestamp: now, count: 0 };
     }
 
-    let found = database[trimmed];
+    // Reject scans while a rename is still in-flight (handles both the React
+    // re-render lag and the synchronous gap before it propagates).
+    if (isRenaming || renameLockRef.current) return;
 
-    // Fallback: 4 digit suffix search
+    let found: ProductData | undefined = database[trimmed];
+    let ambiguousMatch = false;
+
+    // Fallback: 4 digit suffix search — only auto-select when exactly one matches
     if (!found && trimmed.length === 4) {
-      const matchKey = Object.keys(database).find((key) =>
-        key.endsWith(trimmed)
-      );
-      if (matchKey) {
-        found = database[matchKey];
+      const matches = Object.keys(database).filter((key) => key.endsWith(trimmed));
+      if (matches.length === 1) {
+        found = database[matches[0]];
         // update the stored barcode to the actual full barcode so next scan works correctly
-        lastScanRef.current.barcode = matchKey;
+        lastScanRef.current.barcode = matches[0];
+      } else if (matches.length > 1) {
+        // Ambiguous suffix: must NOT auto-select a single match.
+        ambiguousMatch = true;
       }
     }
 
     if (found) {
       setResult(found);
       setNotFound(false);
+      setAmbiguous(false);
 
       if (currentFile) {
         // Auto rename logic
-        const renameRes = await renameCurrentFile(found.generatedName);
-        if (renameRes.success) {
-          setRenameSuccess(true);
-          setTimeout(() => setRenameSuccess(false), 2000);
-          setInputValue(""); // Auto clear for next scan
-          // Refocus input
-          setTimeout(() => inputRef.current?.focus(), 100);
-        } else {
-          alert(`Gagal me-rename file: ${renameRes.error}\nPastikan file tidak sedang dibuka di aplikasi lain.`);
+        // Set the lock synchronously so a second Enter arriving before React
+        // re-renders (and isRenaming updates) is rejected by the guard above.
+        renameLockRef.current = true;
+        try {
+          const renameRes = await renameCurrentFile(found.generatedName);
+          if (renameRes.success) {
+            setRenameSuccess(true);
+            setTimeout(() => setRenameSuccess(false), 2000);
+            setInputValue(""); // Auto clear for next scan
+            // Refocus input
+            setTimeout(() => inputRef.current?.focus(), 100);
+          } else {
+            alert(`Gagal me-rename file: ${renameRes.error}\nPastikan file tidak sedang dibuka di aplikasi lain.`);
+          }
+        } finally {
+          // Always release the lock, including on error or early exit, so
+          // subsequent scans are not permanently blocked.
+          renameLockRef.current = false;
         }
       } else {
         // Classic mode: just copy to clipboard
@@ -238,7 +255,8 @@ export default function App() {
       }
     } else {
       setResult(null);
-      setNotFound(true);
+      setNotFound(!ambiguousMatch);
+      setAmbiguous(ambiguousMatch);
       setShake(true);
       setTimeout(() => setShake(false), 450);
       setCopied(false);
@@ -430,6 +448,7 @@ export default function App() {
     setInputValue("");
     setResult(null);
     setNotFound(false);
+    setAmbiguous(false);
     setCopied(false);
     inputRef.current?.focus();
   };
@@ -870,6 +889,17 @@ export default function App() {
                   }}
                 >
                   ✗ Barcode &ldquo;{inputValue}&rdquo; tidak ditemukan.
+                </p>
+              )}
+              {ambiguous && (
+                <p
+                  className="mt-3 text-[13px]"
+                  style={{
+                    color: P.pink,
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}
+                >
+                  ⚠ Barcode &ldquo;{inputValue}&rdquo; cocok dengan banyak data. Scan barcode lengkap untuk melanjutkan.
                 </p>
               )}
             </div>

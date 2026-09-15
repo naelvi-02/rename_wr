@@ -75,47 +75,39 @@ export const useFileSystem = () => {
     try {
       // Get extension from original file
       const ext = currentItem.name.split('.').pop() || 'jpg';
-      // Bersihkan nama file dari karakter terlarang di Windows/OS lain (\/:*?"<>|)
-      const safeNameBase = newNameBase.replace(/[\\/:*?"<>|]/g, '-');
-      
-      let counter = 0;
-      let newName = '';
-      let fileHandleExists = true;
-      
-      while (fileHandleExists) {
-        let nameToTry = safeNameBase;
-        if (counter === 1) {
-          nameToTry = `${safeNameBase} KAIT`;
-        } else if (counter > 1) {
-          nameToTry = `${safeNameBase} KAIT ${counter}`;
-        }
-        newName = `${nameToTry}.${ext}`;
-        
-        try {
-          // Jika berhasil dapat fileHandle, berarti file sudah ada, kita harus lanjut loop (counter++)
-          await currentItem.parentDirHandle.getFileHandle(newName);
-          counter++;
-        } catch (e: any) {
-          // Jika error-nya NotFoundError, berarti nama file ini aman untuk digunakan
-          if (e.name === 'NotFoundError') {
-            fileHandleExists = false;
-          } else {
-            throw e; // Error lain (misal permission denied) kita lempar ke atas
-          }
+      // Collect existing file names (excluding the current file being renamed)
+      // so the destination never overwrites another file.
+      const existingNames = new Set<string>();
+      // @ts-ignore
+      for await (const entry of currentItem.parentDirHandle.values()) {
+        if (entry.kind === 'file' && entry.name !== currentItem.name) {
+          existingNames.add(entry.name);
         }
       }
-      
+
+      // Repeated scans represent a KAIT photo, not a generic duplicate.
+      // Keep KAIT as a suffix so downstream template processing can associate
+      // it with the primary jewelry photo.
+      const baseName = newNameBase.trim() || currentItem.name.replace(/\.\w+$/, '');
+      let newName = `${baseName}.${ext}`;
+      let counter = 1;
+      while (existingNames.has(newName)) {
+        const kaitSuffix = counter === 1 ? ' KAIT' : ` KAIT ${counter}`;
+        newName = `${baseName}${kaitSuffix}.${ext}`;
+        counter += 1;
+      }
+
       // Read original file
       const file = await currentItem.handle.getFile();
-      
+
       // Create new file
       const newFileHandle = await currentItem.parentDirHandle.getFileHandle(newName, { create: true });
       const writable = await newFileHandle.createWritable();
-      
+
       // Write data
       await writable.write(file);
       await writable.close();
-      
+
       // Delete old file
       await currentItem.parentDirHandle.removeEntry(currentItem.name);
       
