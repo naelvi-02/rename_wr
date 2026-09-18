@@ -57,7 +57,12 @@ function findColumnIndex(headerRow, keywords) {
 // Resolve column indices from the header row when present. Returns null when
 // the required core columns (barcode, nama) cannot be identified by name.
 function resolveColumnsFromHeader(rows) {
-  const headerRow = Array.isArray(rows) ? rows[0] : null;
+  if (!Array.isArray(rows)) return null;
+
+  const headerRow = rows
+    .slice(0, 3)
+    .find((row) => Array.isArray(row) && findColumnIndex(row, COLUMN_KEYWORDS.barcode) != null
+      && findColumnIndex(row, COLUMN_KEYWORDS.nama) != null);
   if (!headerRow) return null;
 
   const resolved = {};
@@ -67,6 +72,16 @@ function resolveColumnsFromHeader(rows) {
 
   const hasCoreColumns = resolved.barcode != null && resolved.nama != null;
   return hasCoreColumns ? resolved : null;
+}
+
+function findHeaderRowIndex(rows) {
+  if (!Array.isArray(rows)) return -1;
+
+  return rows.slice(0, 3).findIndex((row) => {
+    if (!Array.isArray(row)) return false;
+    return findColumnIndex(row, COLUMN_KEYWORDS.barcode) != null
+      && findColumnIndex(row, COLUMN_KEYWORDS.nama) != null;
+  });
 }
 
 // Fallback to the previous positional heuristics when no usable header exists.
@@ -153,7 +168,10 @@ function processSheet(rows, database, sheetName) {
   let currentBaseName = '';
   let currentNamaBarang = '';
 
-  for (let i = 1; i < rows.length; i++) {
+  const headerRowIndex = findHeaderRowIndex(rows);
+  const firstDataRowIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 1;
+
+  for (let i = firstDataRowIndex; i < rows.length; i++) {
     const row = rows[i];
     if (!row || !Array.isArray(row)) continue;
 
@@ -185,7 +203,7 @@ function processSheet(rows, database, sheetName) {
       }
     }
 
-    if (!currentNamaBarang) continue;
+    if (!currentNamaBarang) currentNamaBarang = 'ITEM';
 
     // kadar/nampan are read per-row (never carried) to avoid contaminating
     // unrelated rows with stale values from a previous group.
@@ -239,7 +257,10 @@ function isMainModule() {
 }
 
 if (isMainModule()) {
-  syncData().catch(console.error);
+  syncData().catch((error) => {
+    console.error('Sync failed:', error);
+    process.exitCode = 1;
+  });
 }
 
 export {

@@ -62,6 +62,15 @@ check('header detection returns null when core columns missing', () => {
   const headerRow = ['Foo', 'Bar'];
   assert.strictEqual(resolveColumnsFromHeader([headerRow]), null);
 });
+check('header detection finds header after a title row', () => {
+  const rows = [
+    ['LAPORAN HARIAN PERHIASAN'],
+    ['Nama Barang', 'Barcode', 'Kadar']
+  ];
+  const cols = resolveColumnsFromHeader(rows);
+  assert.strictEqual(cols.nama, 0);
+  assert.strictEqual(cols.barcode, 1);
+});
 
 // --- Position fallback ---
 check('position fallback keeps default layout', () => {
@@ -123,6 +132,17 @@ check('processSheet avoids kadar/nampan contamination and skips invalid rows', (
   const second = db['1234567890124'];
   assert.strictEqual(second.kadar, '', 'kadar must NOT leak from previous row');
   assert.strictEqual(second.nampan, '', 'nampan must NOT leak from previous row');
+});
+
+check('processSheet keeps valid barcode without an item name', () => {
+  const rows = [
+    ['Nama Barang', 'Barcode', 'Kadar', 'Nampan', 'Berat/Gramasi', 'Ukuran'],
+    ['', '33567956', '', '', '', '']
+  ];
+  const db = {};
+  processSheet(rows, db);
+  assert.strictEqual(db['33567956'].barcode, '33567956');
+  assert.strictEqual(db['33567956'].namaBarang, 'ITEM');
 });
 
 check('processSheet keeps source MP or VT in generatedName', () => {
